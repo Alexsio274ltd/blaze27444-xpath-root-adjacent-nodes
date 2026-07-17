@@ -1,0 +1,75 @@
+<!doctype html>
+<title>XPath root-adjacent nodes (doctype, comment, processing-instruction)</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!--root-comment-->
+<body>
+<script>
+test(function() {
+  // HTML: ensure DOCTYPE and a comment before the documentElement are visible to XPath.
+  var docElem = document.documentElement;
+  var result = document.evaluate(
+    "preceding-sibling::node()",
+    docElem,
+    null,
+    XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+    null
+  );
+  var types = [];
+  for (var i = 0; i < result.snapshotLength; i++) {
+    types.push(result.snapshotItem(i).nodeType);
+  }
+  // Expect DOCTYPE (10) then COMMENT (8) when both are present.
+  assert_array_equals(types, [Node.DOCUMENT_TYPE_NODE, Node.COMMENT_NODE],
+                      "preceding-sibling::node() should include DOCTYPE then Comment");
+}, "HTML: documentElement preceding siblings include doctype and comment when present");
+
+test(function() {
+  // XML: create a document with DOCTYPE, comment and a processing instruction before the root.
+  var xml = '<?xml version="1.0"?>' +
+            '<!DOCTYPE root SYSTEM "about:legacy-compat">' +
+            '<!--xml-root-comment-->' +
+            '<?mypi data?>' +
+            '<root/>';
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(xml, "application/xml");
+
+  // If parsing fails in this environment, mark as failure rather than passing silently.
+  if (doc.getElementsByTagName("parsererror").length > 0 ||
+      (doc.documentElement && doc.documentElement.nodeName === "parsererror")) {
+    assert_unreached("XML parsing failed: " + (doc.documentElement ? doc.documentElement.textContent : "(no documentElement)"));
+    return;
+  }
+
+  // processing-instruction() should find the PI placed before the root.
+  var piResult = doc.evaluate(
+    "preceding-sibling::processing-instruction()",
+    doc.documentElement,
+    null,
+    XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+    null
+  );
+  var piTypes = [];
+  for (var i = 0; i < piResult.snapshotLength; i++) {
+    piTypes.push(piResult.snapshotItem(i).nodeType);
+  }
+  assert_array_equals(piTypes, [Node.PROCESSING_INSTRUCTION_NODE],
+                      "processing-instruction() should return the PI before the root element in the XML document");
+
+  // preceding-sibling::node() should return DocumentType, Comment, ProcessingInstruction in document order.
+  var allResult = doc.evaluate(
+    "preceding-sibling::node()",
+    doc.documentElement,
+    null,
+    XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+    null
+  );
+  var allTypes = [];
+  for (var i = 0; i < allResult.snapshotLength; i++) {
+    allTypes.push(allResult.snapshotItem(i).nodeType);
+  }
+  assert_array_equals(allTypes,
+                      [Node.DOCUMENT_TYPE_NODE, Node.COMMENT_NODE, Node.PROCESSING_INSTRUCTION_NODE],
+                      "preceding-sibling::node() should include DOCTYPE, Comment, PI in document order");
+}, "XML: processing instructions, comments and doctypes are visible to XPath as siblings of the root element");
+</script>
